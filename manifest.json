@@ -1,13 +1,10 @@
 {
-  "name": "Minha Rotina",
-  "short_name": "Rotina",
-  "description": "Hábitos, tarefas, água, rotina e vida espiritual.",
+  "name": "Habit OS",
+  "short_name": "Habit OS",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f4f6fb",
-  "theme_color": "#101827",
+  "background_color": "#f6f6f3",
+  "theme_color": "#111111",
   "lang": "pt-BR",
-  "icons": [
-    {"src":"icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
-  ]
+  "icons": []
 }

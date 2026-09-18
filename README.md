@@ -1,32 +1,7 @@
-# Minha Rotina — V2
+# Habit OS V3
 
-Aplicativo PWA em HTML/CSS/JavaScript, sem servidor e sem banco de dados.
+Web/PWA para GitHub Pages.
 
-## Incluído
-- Dashboard e progresso diário
-- Rotina baseada nos horários informados
-- Sistema de água com meta, botões e histórico do dia
-- Hábitos editáveis
-- Tarefas extras
-- Check-in emocional
-- Diário/exame do dia
-- Espaço para reflexão do Evangelho
-- Orações de manhã, antes da faculdade e à noite
-- Terço já encaixado às 16:30 enquanto se arruma + van
-- Modo escuro
-- Salvamento local no aparelho
-- PWA/offline
+Recursos: gráfico diário de 14 dias, comparação dos últimos 7 dias com os 7 anteriores, análise automática, desempenho por hábito, calendário de consistência de 28 dias, agenda mensal, metas por dia da semana, tarefas por data, compromissos com horário/notas, edição de hábitos/tarefas/compromissos/orações/rotinas, orações padrão de manhã/almoço/tarde/noite e backup JSON.
 
-## Como instalar
-Para o navegador oferecer instalação PWA, o projeto precisa ser servido por HTTPS ou localhost. 
-Não basta abrir `index.html` diretamente como arquivo.
-
-Uma forma simples no computador:
-1. Abra a pasta em um servidor local.
-2. Acesse pelo celular usando HTTPS/um ambiente publicado.
-3. No navegador, use "Adicionar à tela inicial" / "Instalar aplicativo".
-
-Para transformar em APK, use um empacotador de PWA/Android posteriormente.
-
-## Observação
-Os dados ficam no armazenamento local do navegador. Limpar os dados do site pode apagar seus registros.
+No GitHub Pages: Settings → Pages → Deploy from a branch → `main` → `/ (root)`.

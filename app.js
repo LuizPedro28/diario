@@ -1,140 +1,79 @@
-const KEY="rotina_v2";
-const defaultData={
-  name:"", waterGoal:2500, water:{}, habits:[
-    {id:"teeth",title:"Escovar os dentes",note:"Manhã e noite",done:false},
-    {id:"college",title:"Faculdade",note:"08:00",done:false},
-    {id:"home",title:"Ajudar em casa",note:"13:00–13:40",done:false},
-    {id:"gym",title:"Academia",note:"Seg, Ter, Qua, Sex e Sáb",done:false},
-    {id:"senai",title:"SENAI",note:"18:40–22:00",done:false},
-    {id:"night",title:"Preparar para dormir",note:"Desacelerar à noite",done:false}
-  ], tasks:[], mood:"", journal:{}, faith:{}
-};
-let data=JSON.parse(localStorage.getItem(KEY)||"null")||defaultData;
-const save=()=>localStorage.setItem(KEY,JSON.stringify(data));
-const dateKey=()=>new Date().toISOString().slice(0,10);
-const todayKey=dateKey();
-if(!data.water[todayKey]) data.water[todayKey]=[];
-if(!data.journal[todayKey]) data.journal[todayKey]={};
-if(!data.faith[todayKey]) data.faith[todayKey]={};
 
-const $=s=>document.querySelector(s);
-const $$=s=>document.querySelectorAll(s);
-function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200)}
-function fmtDate(){return new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"2-digit",month:"long"}).format(new Date())}
-function greeting(){const h=new Date().getHours();return h<12?"Bom dia! 👋":h<18?"Boa tarde! ☀️":"Boa noite! 🌙"}
-function waterTotal(){return data.water[todayKey].reduce((a,b)=>a+b,0)}
-function waterPct(){return Math.min(100,Math.round(waterTotal()/data.waterGoal*100))}
-function renderHeader(){$("#greeting").textContent=(data.name?`Olá, ${data.name}! `:"")+greeting().replace("!","!");$("#today").textContent=fmtDate();$("#dateLabel").textContent=fmtDate()}
-function timeline(){
- const items=[
-  ["05:30","☀️ Acordar","Sinal da Cruz + pequena oração"],
-  ["06:20","🚌 Ônibus","Deslocamento para a faculdade"],
-  ["07:40","🎓 Preparar para aula","Respirar, organizar material"],
-  ["08:00","📚 Faculdade","Aulas"],
-  ["11:10 / 12:30","🍛 Almoço","Dependendo do horário de saída"],
-  ["13:00","🏠 Ajudar em casa","Louça, chão e organização"],
-  ["14:00","🚲 Academia","Bike ~4 km + treino (exceto quinta e domingo)"],
-  ["15:40","🍎 Café da tarde","Comer e descansar"],
-  ["16:30","📿 Terço","Enquanto se arruma; termina geralmente na van"],
-  ["17:50","🚐 Saída para SENAI","Deslocamento"],
-  ["18:40","🏫 SENAI","Aula"],
-  ["20:15","🍽️ Intervalo + jantar","Uma pequena pausa"],
-  ["20:35","📚 SENAI","Aula até 22:00"],
-  ["22:00","🚐 Volta","Deslocamento para casa"],
-  ["23:00","🌙 Rotina noturna","Banho, mochila, diário e oração"],
-  ["00:00","😴 Dormir","Descanso"]
- ];
- const now=new Date(), mins=now.getHours()*60+now.getMinutes();
- const parse=s=>{const m=s.match(/(\d{1,2}):(\d{2})/);return m?Number(m[1])*60+Number(m[2]):0};
- $("#timeline").innerHTML=items.map((x,i)=>{
-   const n=parse(x[0].replace(" / 12:30","")); let current=mins>=n && (i===items.length-1||mins<parse(items[i+1][0].replace(" / 12:30","")));
-   return `<div class="timeline-item ${current?"current":""}">
-    <div class="timeline-dot"></div><div class="timeline-time">${x[0]}</div>
-    <div class="timeline-title">${x[1]}</div><div class="timeline-note">${x[2]}</div>
-   </div>`
- }).join("");
- let next=items.find(x=>parse(x[0].replace(" / 12:30",""))>mins);
- $("#nextActivity").textContent=next?`Próximo: ${next[1]} — ${next[0]}`:"Você chegou ao fim da rotina. 🌙";
-}
-function renderWater(){
- const total=waterTotal(), pct=waterPct();
- $("#waterAmount").textContent=total.toLocaleString("pt-BR");$("#waterGoal").textContent=data.waterGoal.toLocaleString("pt-BR");
- $("#waterGoalMini").textContent=data.waterGoal+" ml";$("#waterMini").textContent=total+" ml";$("#waterPercent").textContent=pct+"%";
- $("#waterFill").style.height=pct+"%";$("#waterMiniBar").style.width=pct+"%";
- $("#waterLog").innerHTML=data.water[todayKey].length?data.water[todayKey].map((v,i)=>`<span>💧 ${v} ml <button onclick="removeWater(${i})" style="border:0;background:none;cursor:pointer">×</button></span>`).join(""):"<span class='muted'>Nenhum registro ainda.</span>";
-}
-window.removeWater=i=>{data.water[todayKey].splice(i,1);save();renderAll()}
-function addWater(v){if(!v||v<1)return;data.water[todayKey].push(Number(v));save();renderAll();toast(`💧 +${v} ml`);if(waterPct()>=100){document.querySelector(".water-card").classList.add("celebrate");toast("🎉 Meta de água atingida!")}}
-$$("[data-water]").forEach(b=>b.onclick=()=>addWater(b.dataset.water));
-$("#addCustomWater").onclick=()=>{addWater($("#customWater").value);$("#customWater").value=""};
-$("#resetWater").onclick=()=>{if(confirm("Zerar a água de hoje?")){data.water[todayKey]=[];save();renderAll()}};
+const KEY="habit-os-v3";
+const DAYS=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const PRAYERS=[
+{id:"p1",name:"Oração da manhã",time:"07:00",text:"Senhor, obrigado por este novo dia. Guia meus passos, minhas escolhas e minhas palavras. Dá-me disciplina, sabedoria e paz.",active:true},
+{id:"p2",name:"Oração antes do almoço",time:"12:00",text:"Senhor, obrigado por este alimento e por tudo o que tornou possível esta refeição. Abençoa este momento e todos que precisam de alimento. Recebo esta refeição com gratidão.",active:true},
+{id:"p3",name:"Oração da tarde",time:"18:00",text:"Senhor, obrigado por me sustentar até aqui. Ajuda-me a terminar bem o que comecei, corrigir meus erros e manter a paz.",active:true},
+{id:"p4",name:"Oração da noite",time:"21:30",text:"Senhor, obrigado por este dia. Perdoa minhas falhas, guarda minha família e dá-me uma noite tranquila. Que amanhã eu possa recomeçar com coragem.",active:true}
+];
+const INITIAL={habits:[],completions:[],tasks:[],routines:[],routineDone:[],prayers:PRAYERS,prayerDone:[],events:[],xp:0,theme:"light",onboarded:false};
+let data=load(),page="today",modal=null,selected=dateKey(),month=new Date();
 
-function renderHabits(){
- const day=new Date().getDay(); // 0 domingo, 4 quinta
- const gymAllowed=day!==0&&day!==4;
- $("#habitList").innerHTML=data.habits.map(h=>{
-   const disabled=h.id==="gym"&&!gymAllowed;
-   return `<div class="habit ${h.done?"done":""}">
-    <button class="check" onclick="toggleHabit('${h.id}')" ${disabled?"disabled":""}>${h.done?"✓":""}</button>
-    <div class="habit-main"><div class="habit-title">${h.title}${disabled?" — descanso":""}</div><div class="habit-note">${h.note}</div></div>
-    <div class="habit-actions"><button onclick="deleteHabit('${h.id}')">🗑️</button></div>
-   </div>`
- }).join("");
-}
-window.toggleHabit=id=>{const h=data.habits.find(x=>x.id===id);if(h){h.done=!h.done;save();renderAll();toast(h.done?"✨ Hábito concluído!":"Hábito desmarcado")}}
-window.deleteHabit=id=>{data.habits=data.habits.filter(x=>x.id!==id);save();renderAll()}
-function renderTasks(){
- $("#taskList").innerHTML=(data.tasks.length?data.tasks:[]).map(t=>`<div class="task ${t.done?"done":""}">
- <button class="check" onclick="toggleTask('${t.id}')">${t.done?"✓":""}</button><div class="habit-main"><div class="habit-title">${t.title}</div></div><button class="habit-actions" onclick="deleteTask('${t.id}')">🗑️</button></div>`).join("")||`<div class="card"><span class="muted">Nenhuma tarefa extra hoje. Use isso para não sobrecarregar seu dia. 🙂</span></div>`;
-}
-window.toggleTask=id=>{const t=data.tasks.find(x=>x.id===id);if(t){t.done=!t.done;save();renderAll()}}
-window.deleteTask=id=>{data.tasks=data.tasks.filter(x=>x.id!==id);save();renderAll()}
+function load(){try{let x=JSON.parse(localStorage.getItem(KEY)||"null")||JSON.parse(localStorage.getItem("habit-os-data-v1")||"null");return x?{...INITIAL,...x,prayers:x.prayers||PRAYERS,events:x.events||[],prayerDone:x.prayerDone||[]}:clone(INITIAL)}catch{return clone(INITIAL)}}
+function clone(x){return JSON.parse(JSON.stringify(x))}
+function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
+function pad(n){return String(n).padStart(2,"0")}
+function dateKey(d=new Date()){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function date(k){let a=k.split("-").map(Number);return new Date(a[0],a[1]-1,a[2])}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function fmt(k){return new Intl.DateTimeFormat("pt-BR",{weekday:"long",day:"numeric",month:"long"}).format(date(k))}
+function add(d,n){let x=new Date(d);x.setDate(x.getDate()+n);return x}
+function toast(t){let e=document.createElement("div");e.className="toast";e.textContent=t;document.body.append(e);setTimeout(()=>e.remove(),1500)}
+function scheduled(h,k){return h.frequency==="daily"||(h.days||[]).includes(date(k).getDay())}
+function habits(k){return data.habits.filter(h=>!h.archived&&scheduled(h,k))}
+function prayers(){return data.prayers.filter(p=>p.active!==false)}
+function tasks(k){return data.tasks.filter(t=>!t.archived&&t.due===k)}
+function events(k){return data.events.filter(e=>!e.archived&&e.date===k).sort((a,b)=>(a.time||"").localeCompare(b.time||""))}
+function doneH(id,k){return data.completions.some(x=>x.habitId===id&&x.date===k)}
+function doneP(id,k){return data.prayerDone.some(x=>x.prayerId===id&&x.date===k)}
+function stats(k){let h=habits(k),p=prayers(),t=tasks(k),total=h.length+p.length+t.length,done=h.filter(x=>doneH(x.id,k)).length+p.filter(x=>doneP(x.id,k)).length+t.filter(x=>x.completed).length;return{h,p,t,e:events(k),total,done,pct:total?done/total:0}}
+function streak(h){let set=new Set(data.completions.filter(x=>x.habitId===h.id).map(x=>x.date)),n=0,d=new Date();for(let i=0;i<365;i++){let k=dateKey(d);if(scheduled(h,k)){if(set.has(k))n++;else break}d=add(d,-1)}return n}
+function rate(h,n){let a=0,b=0;for(let i=0;i<n;i++){let k=dateKey(add(new Date(),-i));if(scheduled(h,k)){a++;if(doneH(h.id,k))b++}}return a?b/a:0}
+function range(n,off=0){let a=0,b=0;for(let i=off;i<off+n;i++){let s=stats(dateKey(add(new Date(),-i)));a+=s.total;b+=s.done}return a?b/a:0}
+function analysis(){let a=range(7),b=range(7,7),d=Math.round((a-b)*100),w=data.habits.filter(h=>!h.archived).sort((x,y)=>rate(x,14)-rate(y,14))[0],s=[];s.push(a>=.8?"Sua consistência recente está alta.":a>=.5?"Você está cumprindo uma parte importante das metas, mas ainda pode ganhar regularidade.":"Há espaço para recuperar consistência; priorize as metas essenciais.");s.push(d>5?`Os últimos 7 dias ficaram ${d} pontos percentuais acima dos 7 anteriores.`:d< -5?`Os últimos 7 dias ficaram ${Math.abs(d)} pontos percentuais abaixo dos 7 anteriores.`:"Os últimos 7 dias ficaram próximos dos 7 anteriores.");if(w)s.push(`O hábito com menor cumprimento nos últimos 14 dias é “${w.name}”, com ${Math.round(rate(w,14)*100)}%.`);return s.join(" ")}
+function nav(){return `<nav class="nav"><div class="navin">${[["today","⌂","Hoje"],["agenda","▦","Agenda"],["habits","✓","Hábitos"],["evolution","▥","Evolução"],["profile","◉","Perfil"]].map(x=>`<button class="${page===x[0]?"active":""}" onclick="go('${x[0]}')"><strong>${x[1]}</strong>${x[2]}</button>`).join("")}<button class="addBtn" onclick="openForm('quick')">＋</button></div></nav>`}
+function go(p){page=p;modal=null;render()}
+function render(){document.documentElement.classList.toggle("dark",data.theme==="dark");document.getElementById("app").innerHTML=data.onboarded?`<main>${page==="today"?today():page==="agenda"?agenda():page==="habits"?habitsPage():page==="evolution"?evolution():profile()}</main>${nav()}`:onboard();if(modal)document.getElementById("app").insertAdjacentHTML("beforeend",modal)}
+function onboard(){return `<div class="onboard"><div class="eyebrow">HABIT OS V3</div><div><div class="onTitle">Organize.<br>Execute.<br>Evolua.</div><p>Hábitos, agenda, orações, tarefas e métricas.</p></div><button class="primary light" onclick="data.onboarded=true;save();render()">COMEÇAR</button></div>`}
+function section(t,b){return `<div class="section"><b>${t}</b></div>${b}`}
+function check(cls,on,fn){return `<button class="check ${on?"done":""}" onclick="${fn}">${on?"✓":""}</button>`}
+function habitItem(h,k=dateKey()){let d=doneH(h.id,k);return `<div class="item">${check("",d,`toggleH('${h.id}','${k}')`)}<div class="itemMain"><div class="itemName ${d?"doneText":""}">${esc(h.icon)} ${esc(h.name)}</div><div class="meta">🔥 ${streak(h)} dias • +${h.xp} XP</div></div><button class="iconBtn" onclick="openForm('habit','${h.id}')">✎</button></div>`}
+function prayerItem(p){let d=doneP(p.id,dateKey());return `<div class="item">${check("",d,`toggleP('${p.id}')`)}<div class="itemMain"><div class="itemName ${d?"doneText":""}">🙏 ${esc(p.name)}</div><div class="meta">⏰ ${esc(p.time)}</div><div class="prayerPreview">${esc(p.text)}</div></div><button class="iconBtn" onclick="openForm('prayer','${p.id}')">✎</button></div>`}
+function taskItem(t){return `<div class="item">${check("",t.completed,`toggleT('${t.id}')`)}<div class="itemMain"><div class="itemName ${t.completed?"doneText":""}">${esc(t.title)}</div><div class="meta">${esc(t.priority||"Média")}</div></div><button class="iconBtn" onclick="openForm('task','${t.id}')">✎</button></div>`}
+function eventItem(e){return `<div class="item"><div class="time">${esc(e.time||"—")}</div><div class="itemMain"><div class="itemName">${esc(e.title)}</div><div class="meta">${esc(e.category||"Agenda")}${e.notes?" • "+esc(e.notes):""}</div></div><button class="iconBtn" onclick="openForm('event','${e.id}')">✎</button></div>`}
+function today(){let k=dateKey(),s=stats(k);return `<div class="top"><div><div class="eyebrow">HABIT OS</div><div class="title">Hoje</div><div class="sub">${fmt(k)}</div></div></div><div class="card hero"><div class="heroRow"><div><div class="percent">${Math.round(s.pct*100)}%</div><div class="muted">${s.done}/${s.total} metas cumpridas</div></div><div class="fire">🔥</div></div><div class="progress"><i style="width:${s.pct*100}%"></i></div><div class="muted">${data.xp} XP • ${s.e.length} compromisso${s.e.length===1?"":"s"}</div></div>${section("Hábitos",s.h.map(h=>habitItem(h)).join("")||empty("Nenhum hábito","Crie metas para dias específicos.","Novo hábito","habit"))}${section("Orações",prayers().map(prayerItem).join(""))}${section("Tarefas",s.t.map(taskItem).join("")||empty("Sem tarefas","Organize suas tarefas por data.","Nova tarefa","task"))}${section("Agenda de hoje",s.e.map(eventItem).join("")||empty("Sem compromissos","Adicione horários, estudos, treinos ou compromissos.","Adicionar","event"))}`}
+function empty(a,b,c,t){return `<div class="card empty"><h3>${a}</h3><div class="sub">${b}</div><button class="primary" onclick="openForm('${t}')">+ ${c}</button></div>`}
 
-function renderFaith(){
- const f=data.faith[todayKey];
- $("#moodMini").textContent=data.mood||"Como você está hoje?";
- $("#moodResult").textContent=data.mood?`Hoje você marcou: ${data.mood}`:"";
- $("#mindDump").value=data.journal[todayKey]?.mind||"";
- $("#gratitude").value=data.journal[todayKey]?.gratitude||"";
- $("#tomorrow").value=data.journal[todayKey]?.tomorrow||"";
- $("#gospel").value=data.journal[todayKey]?.gospel||"";
-}
-$$("[data-mood]").forEach(b=>b.onclick=()=>{data.mood=b.dataset.mood;save();renderAll();toast("🧠 Check-in salvo")});
-$("#saveJournal").onclick=()=>{data.journal[todayKey]={...(data.journal[todayKey]||{}),mind:$("#mindDump").value,gratitude:$("#gratitude").value,tomorrow:$("#tomorrow").value};save();toast("📝 Diário salvo")};
-$("#saveGospel").onclick=()=>{data.journal[todayKey]={...(data.journal[todayKey]||{}),gospel:$("#gospel").value};save();toast("📖 Reflexão salva")};
-$$("[data-complete]").forEach(b=>b.onclick=()=>{data.faith[todayKey][b.dataset.complete]=true;save();b.textContent="✓ Registrado";b.disabled=true;toast("🙏 Momento registrado")});
+function agenda(){let s=stats(selected),days=calendarDays(month);return `<div class="top"><div><div class="title">Agenda</div><div class="sub">Escolha um dia e veja suas metas</div></div><button class="secondary" onclick="openForm('event')">＋ Compromisso</button></div><div class="card"><div class="calendarHead"><button class="secondary small" onclick="monthMove(-1)">‹</button><b>${month.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</b><button class="secondary small" onclick="monthMove(1)">›</button></div><div class="weekHead">${DAYS.map(x=>`<span>${x}</span>`).join("")}</div><div class="monthGrid">${days.map(x=>x?cell(x):"<div></div>").join("")}</div></div><div class="card selectedDay"><div class="eyebrow">DIA SELECIONADO</div><h2>${fmt(selected)}</h2><div class="bigPct">${Math.round(s.pct*100)}%</div><div class="progress"><i style="width:${s.pct*100}%"></i></div><div class="muted">${s.done}/${s.total} metas • ${s.e.length} compromissos</div></div>${section("Metas",s.h.map(h=>habitItem(h,selected)).join("")||"<div class='muted'>Nenhum hábito programado.</div>")}${section("Tarefas",s.t.map(taskItem).join("")||empty("Sem tarefas","Adicione uma tarefa para este dia.","Nova tarefa","task"))}${section("Compromissos",s.e.map(eventItem).join("")||empty("Sem compromissos","Seu dia está livre.","Adicionar","event"))}`}
+function calendarDays(d){let first=new Date(d.getFullYear(),d.getMonth(),1),last=new Date(d.getFullYear(),d.getMonth()+1,0),a=[],lead=(first.getDay()+6)%7;for(let i=0;i<lead;i++)a.push(null);for(let i=1;i<=last.getDate();i++)a.push(new Date(d.getFullYear(),d.getMonth(),i));return a}
+function cell(d){let k=dateKey(d),s=stats(k);return `<button class="calCell ${k===selected?"selectedCell":""} ${k===dateKey()?"todayCell":""}" onclick="selected='${k}';render()"><b>${d.getDate()}</b><span>${Math.round(s.pct*100)}%</span><i style="width:${Math.max(4,s.pct*100)}%"></i></button>`}
+function monthMove(n){month=new Date(month.getFullYear(),month.getMonth()+n,1);render()}
 
-function dayProgress(){
- const habits=data.habits.filter(h=>!(h.id==="gym"&&(new Date().getDay()===0||new Date().getDay()===4)));
- const completed=habits.filter(h=>h.done).length;
- const tasks=data.tasks.filter(t=>t.done).length;
- const faith=Object.values(data.faith[todayKey]||{}).filter(Boolean).length;
- const total=habits.length+data.tasks.length+3;
- const done=completed+tasks+Math.min(faith,3);
- return total?Math.round(done/total*100):0;
-}
-function renderProgress(){
- const p=dayProgress();$("#dayProgress").textContent=p+"%";$("#ringText").textContent=p+"%";$("#dayProgressBar").style.width=p+"%";$("#ring").style.background=`conic-gradient(var(--accent) ${p*3.6}deg,var(--line) 0deg)`;
-}
-function renderAll(){renderHeader();timeline();renderWater();renderHabits();renderTasks();renderFaith();renderProgress()}
-$$(".tab").forEach(tab=>tab.onclick=()=>{ $$(".tab").forEach(x=>x.classList.remove("active"));tab.classList.add("active");$$(".section").forEach(x=>x.classList.remove("active"));$("#"+tab.dataset.section).classList.add("active")});
-$$("[data-jump]").forEach(b=>b.onclick=()=>{const target=b.dataset.jump;document.querySelector(`[data-section="${target}"]`).click()});
+function habitsPage(){let a=data.habits.filter(h=>!h.archived);return `<div class="top"><div><div class="title">Hábitos</div><div class="sub">Edite dias, frequência, XP e descrição</div></div><button class="secondary" onclick="openForm('habit')">＋ Novo</button></div>${a.map(h=>`<div class="card"><div class="item" style="padding:0;border:0"><div style="font-size:28px">${esc(h.icon)}</div><div class="itemMain"><div class="itemName">${esc(h.name)}</div><div class="meta">${esc(h.category)} • ${h.frequency==="daily"?"Todos os dias":(h.days||[]).map(x=>DAYS[x]).join(", ")}</div></div><span class="pill">+${h.xp}</span></div><div class="actionRow"><span class="muted">14 dias: ${Math.round(rate(h,14)*100)}%</span><button class="secondary small" onclick="openForm('habit','${h.id}')">Editar</button></div></div>`).join("")||empty("Nenhum hábito","Crie sua primeira meta.","Novo hábito","habit")}`}
+function evolution(){let a=range(7),b=range(7,7),diff=Math.round((a-b)*100),series=[];for(let i=13;i>=0;i--){let d=add(new Date(),-i),k=dateKey(d),s=stats(k);series.push({k,label:`${pad(d.getDate())}/${pad(d.getMonth()+1)}`,pct:Math.round(s.pct*100)})}return `<div class="top"><div><div class="title">Evolução</div><div class="sub">Análise baseada nos seus registros</div></div></div><div class="card analysisHero"><div class="eyebrow">ÚLTIMOS 7 DIAS</div><div class="analysisScore">${Math.round(a*100)}%</div><div class="progress"><i style="width:${a*100}%"></i></div><p class="analysisText">${esc(analysis())}</p></div><div class="grid"><div class="card stat"><div class="statNum">${Math.round(a*100)}%</div><div class="sub">últimos 7 dias</div></div><div class="card stat"><div class="statNum">${Math.round(b*100)}%</div><div class="sub">7 anteriores</div></div><div class="card stat"><div class="statNum">${diff>0?"+":""}${diff} pp</div><div class="sub">variação</div></div></div><div class="section"><b>Gráfico diário</b><span class="muted">14 dias</span></div><div class="card"><div class="barChart">${series.map(x=>`<div class="chartCol"><small>${x.pct}%</small><div class="chartBar" style="height:${Math.max(5,x.pct)}%"></div><span>${x.label}</span></div>`).join("")}</div></div><div class="section"><b>Desempenho por hábito</b></div><div class="card">${data.habits.filter(h=>!h.archived).map(h=>`<div class="metricRow"><div><b>${esc(h.name)}</b><small>${Math.round(rate(h,14)*100)}% em 14 dias</small></div><div class="miniProgress"><i style="width:${rate(h,14)*100}%"></i></div></div>`).join("")||"<div class='muted'>Crie hábitos para gerar métricas.</div>"}</div><div class="section"><b>Calendário de consistência</b><span class="muted">28 dias</span></div><div class="card"><div class="heatmap">${Array.from({length:28},(_,i)=>{let d=add(new Date(),-27+i),k=dateKey(d),s=stats(k);return `<button class="heat ${s.pct>=.8?"h3":s.pct>=.5?"h2":s.pct>0?"h1":""}" onclick="selected='${k}';page='agenda';month=new Date(d.getFullYear(),d.getMonth(),1);render()">${d.getDate()}</button>`}).join("")}</div></div>`}
+function profile(){return `<div class="top"><div><div class="title">Perfil</div><div class="sub">Configurações</div></div></div><div class="card"><b>🙏 Orações</b><p class="sub">Manhã, antes do almoço, tarde e noite. Edite texto e horário.</p><button class="secondary" onclick="openForm('prayer')">＋ Nova oração</button></div><div class="card"><b>🌗 Tema</b><p class="sub">Atual: ${data.theme}</p><button class="secondary" onclick="data.theme=data.theme==="dark"?"light":"dark";save();render()">Alternar tema</button></div><div class="card"><b>📦 Backup</b><p class="sub">Tudo fica salvo neste navegador.</p><button class="secondary" onclick="exportData()">Exportar JSON</button></div>`}
 
-let modalType="";
-function openModal(type){modalType=type;$("#modalTitle").textContent=type==="habit"?"Novo hábito":"Nova tarefa";$("#modalInput").placeholder=type==="habit"?"Ex.: Ler 10 minutos":"Ex.: Comprar material";$("#modalInput").value="";$("#modal").classList.remove("hidden");$("#modalInput").focus()}
-$("#addHabitBtn").onclick=()=>openModal("habit");$("#addTaskBtn").onclick=()=>openModal("task");
-$("#closeModal").onclick=$("#cancelModal").onclick=()=>$("#modal").classList.add("hidden");
-$("#modalForm").onsubmit=e=>{e.preventDefault();const title=$("#modalInput").value.trim();if(!title)return;if(modalType==="habit")data.habits.push({id:crypto.randomUUID(),title,note:"Personalizado",done:false});else data.tasks.push({id:crypto.randomUUID(),title,done:false});save();$("#modal").classList.add("hidden");renderAll();toast("✨ Adicionado!")};
+function openForm(t,e){modal=t==="habit"?habitForm(e):t==="task"?taskForm(e):t==="event"?eventForm(e):t==="prayer"?prayerForm(e):t==="quick"?quickForm():routineForm(e);render()}
+function closeForm(){modal=null;render()}
+function daysButtons(sel=[]){return DAYS.map((d,i)=>`<button type="button" class="day ${sel.includes(i)?"sel":""}" onclick="this.classList.toggle('sel')">${d}</button>`).join("")}
+function habitForm(e){let h=e?data.habits.find(x=>x.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${h?"Editar":"Novo"} hábito</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveHabit(event,'${e||""}')"><label class="label">NOME</label><input class="input" name="name" value="${esc(h?.name||"")}" required><label class="label">ÍCONE</label><input class="input" name="icon" value="${esc(h?.icon||"✓")}"><label class="label">CATEGORIA</label><input class="input" name="category" value="${esc(h?.category||"Pessoal")}"><label class="label">FREQUÊNCIA</label><select class="select" name="frequency" onchange="this.nextElementSibling.style.display=this.value==='days'?'flex':'none'"><option value="daily" ${h?.frequency!=="days"?"selected":""}>Todos os dias</option><option value="days" ${h?.frequency==="days"?"selected":""}>Dias da semana</option></select><div class="days" style="display:${h?.frequency==="days"?"flex":"none"}">${daysButtons(h?.days||[1,3,5])}</div><label class="label">XP</label><input class="input" type="number" name="xp" min="1" max="1000" value="${h?.xp||10}"><label class="label">DESCRIÇÃO</label><textarea class="input" name="note" rows="3">${esc(h?.note||"")}</textarea><button class="primary">SALVAR</button>${h?`<button type="button" class="dangerBtn" onclick="deleteItem('habit','${h.id}')">EXCLUIR</button>`:""}</form></div></div>`}
+function saveHabit(ev,e){ev.preventDefault();let f=new FormData(ev.target),ds=[...ev.target.querySelectorAll(".day")].map((x,i)=>x.classList.contains("sel")?i:null).filter(x=>x!==null),o={name:f.get("name"),icon:f.get("icon")||"✓",category:f.get("category")||"Pessoal",frequency:f.get("frequency"),days:ds,xp:Number(f.get("xp"))||10,note:f.get("note")||"",archived:false};if(e)Object.assign(data.habits.find(h=>h.id===e),o);else data.habits.push({id:uid(),...o});save();closeForm();toast("Hábito salvo")}
+function taskForm(e){let t=e?data.tasks.find(x=>x.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${t?"Editar":"Nova"} tarefa</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveTask(event,'${e||""}')"><label class="label">TÍTULO</label><input class="input" name="title" value="${esc(t?.title||"")}" required><label class="label">DATA</label><input class="input" name="due" type="date" value="${t?.due||selected}" required><label class="label">PRIORIDADE</label><select class="select" name="priority"><option ${t?.priority==="low"?"selected":""} value="low">Baixa</option><option ${!t||t.priority==="medium"?"selected":""} value="medium">Média</option><option ${t?.priority==="high"?"selected":""} value="high">Alta</option></select><label class="label">NOTAS</label><textarea class="input" name="note" rows="3">${esc(t?.note||"")}</textarea><button class="primary">SALVAR</button>${t?`<button type="button" class="dangerBtn" onclick="deleteItem('task','${t.id}')">EXCLUIR</button>`:""}</form></div></div>`}
+function saveTask(ev,e){ev.preventDefault();let f=new FormData(ev.target),old=e?data.tasks.find(t=>t.id===e):null,o={title:f.get("title"),due:f.get("due"),priority:f.get("priority"),note:f.get("note")||"",completed:old?.completed||false,archived:false};if(old)Object.assign(old,o);else data.tasks.push({id:uid(),...o});save();closeForm();toast("Tarefa salva")}
+function eventForm(e){let x=e?data.events.find(a=>a.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${x?"Editar":"Novo"} compromisso</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveEvent(event,'${e||""}')"><label class="label">TÍTULO</label><input class="input" name="title" value="${esc(x?.title||"")}" placeholder="Estudo, treino, consulta..." required><label class="label">DATA</label><input class="input" name="date" type="date" value="${x?.date||selected}" required><label class="label">HORÁRIO</label><input class="input" name="time" type="time" value="${x?.time||"08:00"}"><label class="label">CATEGORIA</label><input class="input" name="category" value="${esc(x?.category||"Agenda")}"><label class="label">NOTAS</label><textarea class="input" name="notes" rows="3">${esc(x?.notes||"")}</textarea><button class="primary">SALVAR</button>${x?`<button type="button" class="dangerBtn" onclick="deleteItem('event','${x.id}')">EXCLUIR</button>`:""}</form></div></div>`}
+function saveEvent(ev,e){ev.preventDefault();let f=new FormData(ev.target),o={title:f.get("title"),date:f.get("date"),time:f.get("time"),category:f.get("category"),notes:f.get("notes"),archived:false};if(e)Object.assign(data.events.find(x=>x.id===e),o);else data.events.push({id:uid(),...o});save();closeForm();toast("Compromisso salvo")}
+function prayerForm(e){let p=e?data.prayers.find(x=>x.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${p?"Editar":"Nova"} oração</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="savePrayer(event,'${e||""}')"><label class="label">NOME</label><input class="input" name="name" value="${esc(p?.name||"")}" required><label class="label">HORÁRIO</label><input class="input" type="time" name="time" value="${p?.time||"12:00"}" required><label class="label">TEXTO</label><textarea class="input" name="text" rows="9" required>${esc(p?.text||"")}</textarea><label class="switchRow"><input type="checkbox" name="active" ${p?.active!==false?"checked":""}> Mostrar na rotina diária</label><button class="primary">SALVAR</button>${p?`<button type="button" class="dangerBtn" onclick="deleteItem('prayer','${p.id}')">EXCLUIR</button>`:""}</form></div></div>`}
+function savePrayer(ev,e){ev.preventDefault();let f=new FormData(ev.target),o={name:f.get("name"),time:f.get("time"),text:f.get("text"),active:f.get("active")==="on"};if(e)Object.assign(data.prayers.find(x=>x.id===e),o);else data.prayers.push({id:uid(),...o});save();closeForm();toast("Oração salva")}
+function routineForm(e){let r=e?data.routines.find(x=>x.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${r?"Editar":"Nova"} rotina</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveRoutine(event,'${e||""}')"><label class="label">NOME</label><input class="input" name="name" value="${esc(r?.name||"")}" required><label class="label">PASSOS</label><textarea class="input" name="items" rows="7">${esc(r?.items?.map(x=>x.title).join(", ")||"Acordar, Beber água, Arrumar a cama")}</textarea><div class="hint">Separe os passos por vírgula.</div><button class="primary">SALVAR</button>${r?`<button type="button" class="dangerBtn" onclick="deleteItem('routine','${r.id}')">EXCLUIR</button>`:""}</form></div></div>`}
+function saveRoutine(ev,e){ev.preventDefault();let f=new FormData(ev.target),o={name:f.get("name"),items:String(f.get("items")).split(",").map(x=>({id:uid(),title:x.trim()})).filter(x=>x.title),archived:false};if(e)Object.assign(data.routines.find(x=>x.id===e),o);else data.routines.push({id:uid(),...o});save();closeForm();toast("Rotina salva")}
+function quickForm(){return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">Adicionar</div><button class="close" onclick="closeForm()">Fechar</button></div><div class="quickGrid">${[["✓","Hábito","habit"],["□","Tarefa","task"],["◷","Compromisso","event"],["◈","Rotina","routine"],["🙏","Oração","prayer"]].map(x=>`<button class="quick" onclick="openForm('${x[2]}')"><span>${x[0]}</span><b>${x[1]}</b></button>`).join("")}</div></div></div>`}
 
-$("#themeBtn").onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("theme",document.body.classList.contains("dark")?"dark":"light")};
-if(localStorage.getItem("theme")==="dark")document.body.classList.add("dark");
-
-$("#waterGoalInput").value=data.waterGoal;$("#nameInput").value=data.name;
-$("#saveSettings").onclick=()=>{data.waterGoal=Math.max(500,Number($("#waterGoalInput").value)||2500);data.name=$("#nameInput").value.trim();save();renderAll();toast("⚙️ Configurações salvas")};
-
-let deferredPrompt;
-window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;$("#installBtn").hidden=false});
-$("#installBtn").onclick=async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$("#installBtn").hidden=true};
-if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("service-worker.js").catch(()=>{}));
-
-renderAll();
+function toggleH(id,k=dateKey()){let i=data.completions.findIndex(x=>x.habitId===id&&x.date===k),h=data.habits.find(x=>x.id===id);if(i>=0){data.xp=Math.max(0,data.xp-(data.completions[i].xp||h.xp));data.completions.splice(i,1)}else{data.completions.push({habitId:id,date:k,xp:h.xp});data.xp+=h.xp}save();render()}
+function toggleP(id){let k=dateKey(),i=data.prayerDone.findIndex(x=>x.prayerId===id&&x.date===k);if(i>=0)data.prayerDone.splice(i,1);else{data.prayerDone.push({prayerId:id,date:k});data.xp+=5}save();render()}
+function toggleT(id){let t=data.tasks.find(x=>x.id===id);t.completed=!t.completed;save();render()}
+function deleteItem(type,id){if(!confirm("Excluir este item?"))return;let m={habit:"habits",task:"tasks",event:"events",prayer:"prayers",routine:"routines"}[type];data[m]=data[m].filter(x=>x.id!==id);if(type==="habit")data.completions=data.completions.filter(x=>x.habitId!==id);if(type==="prayer")data.prayerDone=data.prayerDone.filter(x=>x.prayerId!==id);save();closeForm()}
+function exportData(){let b=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="habit-os-backup.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+if("serviceWorker"in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("./sw.js").catch(()=>{});
+render();
