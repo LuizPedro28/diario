@@ -26,16 +26,23 @@ de endereço (desktop, Chrome/Edge).
 - **Rotinas** — sequências de passos (ex: rotina da manhã). Podem ser
   marcadas por checklist ou seguidas no **modo guiado**, passo a passo.
   Cada rotina pode ser **exportada** como um arquivo `.json` (botão
-  "Exportar" no card ou dentro do formulário de edição) e depois
-  **importada** em outro aparelho (botão "Importar rotina" na aba
-  Hábitos → Rotinas) — é assim que dá pra criar a rotina no computador
-  e levar para o celular, ou vice-versa.
+  "Exportar" no card ou dentro do formulário de edição). Na aba
+  Hábitos existe também um botão **"Importar plano"** que aceita um
+  arquivo com hábitos e/ou rotinas juntos — é assim que dá pra montar
+  tudo no computador e levar de uma vez para o celular, ou vice-versa.
 - **Tarefas** — com prioridade, data e uma visão dedicada (pendentes/concluídas)
   dentro da aba Hábitos.
 - **Agenda** — calendário mensal com % de cumprimento por dia e compromissos.
 - **Orações** — quatro orações padrão (editáveis), com horário e texto.
 - **XP, níveis e conquistas** — todo item concluído dá XP; XP acumulado sobe
   de nível; conquistas são desbloqueadas automaticamente e avisadas por toast.
+- **Importar com IA** — botão "🤖 IA / Colar JSON" (aba Hábitos e Perfil):
+  copia/baixa um **guia pronto para qualquer IA** explicando o formato do
+  plano, baixa um **modelo de arquivo** (.json) e importa o resultado por
+  **texto colado** ou **arquivo**. A importação aceita hábitos, rotinas,
+  orações e tarefas, valida os dados (dias 0–6, datas, horários), mostra
+  avisos, ignora nomes que já existem e sempre pede confirmação. Também dá
+  para **exportar seu plano atual** no mesmo formato.
 - **Evolução** — comparação semana atual x anterior, gráfico diário,
   desempenho por hábito e um calendário de consistência (estilo "heatmap"),
   com período ajustável (7/30/90 dias).

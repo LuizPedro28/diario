@@ -198,6 +198,7 @@ function setHabitsTab(t){habitsTab=t;render()}
 function habitsHubPage(){
   return `<div class="top"><div><div class="title">Hábitos</div><div class="sub">Gerencie hábitos, rotinas e tarefas</div></div></div>
   <div class="tabs">${[["habits","Hábitos"],["routines","Rotinas"],["tasks","Tarefas"]].map(x=>`<button class="tab ${habitsTab===x[0]?"on":""}" onclick="setHabitsTab('${x[0]}')">${x[1]}</button>`).join("")}</div>
+  <div class="actionRow" style="margin:0 0 4px;justify-content:flex-end;gap:8px"><button class="secondary small" onclick="openForm('import')">🤖 IA / Colar JSON</button><label class="secondary small" style="display:inline-block;cursor:pointer">⭳ Importar plano<input type="file" accept="application/json" style="display:none" onchange="importPlanFile(event)"></label></div>
   ${habitsTab==="habits"?habitsListView():habitsTab==="routines"?routinesListView():tasksListView()}`;
 }
 function habitsListView(){
@@ -210,11 +211,8 @@ function habitsListView(){
 }
 function routinesListView(){
   let list=data.routines.filter(r=>!r.archived);
-  return `<div class="actionRow" style="margin:0 0 10px;justify-content:flex-end;gap:8px">
-    <label class="secondary small" style="display:inline-block;cursor:pointer">Importar rotina<input type="file" accept="application/json" style="display:none" onchange="importRoutineFile(event)"></label>
-    <button class="secondary small" onclick="openForm('routine')">＋ Nova rotina</button>
-  </div>
-  <div class="hint" style="margin:-4px 0 10px">Crie a rotina aqui, toque em "Exportar" no card e depois em "Importar rotina" no outro aparelho para levá-la junto.</div>
+  return `<div class="actionRow" style="margin:0 0 10px;justify-content:flex-end"><button class="secondary small" onclick="openForm('routine')">＋ Nova rotina</button></div>
+  <div class="hint" style="margin:-4px 0 10px">Toque em "Exportar" para baixar uma rotina e usar "Importar plano" (acima) para trazê-la — ou um plano inteiro — para outro aparelho.</div>
   ${list.map(r=>`<div class="card"><div class="item" style="padding:0;border:0"><div style="font-size:28px">📋</div><div class="itemMain"><div class="itemName">${esc(r.name)}</div><div class="meta">${r.items.length} passos • ${r.frequency==="daily"?"Todos os dias":(r.days||[]).map(x=>DAYS[x]).join(", ")||"Todos os dias"} • +${r.xp} XP</div></div></div><div class="actionRow"><span class="muted">Concluída ${data.routineDone.filter(x=>x.routineId===r.id).length}x</span><div style="display:flex;gap:6px"><button class="secondary small" onclick="exportRoutine('${r.id}')">Exportar</button><button class="secondary small" onclick="openForm('routine','${r.id}')">Editar</button></div></div></div>`).join("")||empty("Nenhuma rotina","Crie uma sequência de passos (ex: rotina da manhã).","Nova rotina","routine")}`;
 }
 function tasksListView(){
@@ -291,6 +289,7 @@ function profileSettings(){
     <button class="secondary" onclick="openForm('prayer')">＋ Nova oração</button>
   </div>
   <div class="card"><b>📊 Relatório</b><p class="sub">Veja sua evolução e baixe um relatório para análise.</p><button class="secondary" onclick="go('evolution')">Ver evolução e relatório</button></div>
+  <div class="card"><b>🤖 Importar com IA</b><p class="sub">Peça a uma IA para montar seus hábitos e rotinas num arquivo JSON e importe aqui. Inclui guia pronto para a IA e modelo de arquivo.</p><button class="secondary" onclick="openForm('import')">Abrir importação e guia para IA</button></div>
   <div class="card"><b>📦 Dados</b><p class="sub">Tudo fica salvo neste navegador. Faça backup regularmente.</p>
     <div class="actionRow" style="justify-content:flex-start;gap:8px">
       <button class="secondary" onclick="exportData()">Exportar backup</button>
@@ -302,7 +301,7 @@ function profileSettings(){
 }
 
 /* ---------- FORMULÁRIOS ---------- */
-function openForm(t,e){modal=t==="habit"?habitForm(e):t==="task"?taskForm(e):t==="event"?eventForm(e):t==="prayer"?prayerForm(e):t==="quick"?quickForm():routineForm(e);render()}
+function openForm(t,e){modal=t==="habit"?habitForm(e):t==="task"?taskForm(e):t==="event"?eventForm(e):t==="prayer"?prayerForm(e):t==="quick"?quickForm():t==="import"?importHubForm():routineForm(e);render()}
 function closeForm(){modal=null;playerRoutine=null;render()}
 function daysButtons(sel=[]){return orderedDayDefs().map(d=>`<button type="button" class="day ${sel.includes(d.v)?"sel":""}" data-v="${d.v}" onclick="this.classList.toggle('sel')">${d.l}</button>`).join("")}
 function readDays(form){return [...form.querySelectorAll(".day")].filter(x=>x.classList.contains("sel")).map(x=>Number(x.dataset.v))}
@@ -330,32 +329,257 @@ function exportRoutine(id){
   downloadBlob(`habit-os-rotina-${slugify(r.name)}.json`,JSON.stringify(payload,null,2),"application/json");
   toast("Rotina exportada");
 }
-function importRoutineFile(ev){
+/* ---------- IMPORTAR PLANO (arquivo, texto colado, IA) ---------- */
+const FENCE="`".repeat(3);
+const normKey=s=>String(s||"").trim().toLowerCase();
+function cleanDays(d){return [...new Set((Array.isArray(d)?d:[]).map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<=6))].sort((a,b)=>a-b)}
+function clampXP(v,max,def){let n=Math.round(Number(v));return Number.isFinite(n)&&n>0?Math.min(max,n):def}
+function planFreq(o,label,warn){
+  let days=cleanDays(o.days),wantsDays=o.frequency==="days"||(o.frequency===undefined&&days.length>0);
+  if(!wantsDays)return {frequency:"daily",days:[]};
+  if(!days.length){warn.push(`"${label}": frequência por dias sem dias válidos (0 a 6) — virou diária`);return {frequency:"daily",days:[]}}
+  return {frequency:"days",days};
+}
+function planStepTitles(r){let src=Array.isArray(r.items)?r.items:Array.isArray(r.steps)?r.steps:[];return src.map(i=>typeof i==="string"?i:(i&&i.title)||"").map(s=>String(s).trim()).filter(Boolean)}
+function objs(a){return (Array.isArray(a)?a:[]).filter(x=>x&&typeof x==="object")}
+function normalizePlan(obj){
+  let out={habits:[],routines:[],prayers:[],tasks:[],skipped:0,warnings:[]},w=out.warnings;
+  if(!obj||typeof obj!=="object")return out;
+  let hs=[],rs=[],ps=[],ts=[];
+  if(obj.type==="habit-os-routine"&&obj.routine)rs=objs([obj.routine]);
+  else{
+    hs=objs(obj.habits);rs=objs(obj.routines);ps=objs(obj.prayers);ts=objs(obj.tasks);
+    if(!hs.length&&!rs.length&&!ps.length&&!ts.length&&obj.name&&Array.isArray(obj.items))rs=[obj];
+  }
+  let seen=new Set(data.habits.map(h=>normKey(h.name)));
+  hs.forEach(h=>{
+    let name=String(h.name||"").trim();
+    if(!name){w.push("Um hábito sem nome foi ignorado");return}
+    if(seen.has(normKey(name))){out.skipped++;return}
+    seen.add(normKey(name));
+    out.habits.push({name,icon:String(h.icon||"").trim()||"✓",category:String(h.category||"").trim()||"Pessoal",...planFreq(h,name,w),xp:clampXP(h.xp,1000,10),note:String(h.note||"")});
+  });
+  seen=new Set(data.routines.map(r=>normKey(r.name)));
+  rs.forEach(r=>{
+    let name=String(r.name||"").trim(),titles=planStepTitles(r);
+    if(!name){w.push("Uma rotina sem nome foi ignorada");return}
+    if(!titles.length){w.push(`A rotina "${name}" não tem passos e foi ignorada`);return}
+    if(seen.has(normKey(name))){out.skipped++;return}
+    seen.add(normKey(name));
+    out.routines.push({name,items:titles,...planFreq(r,name,w),xp:clampXP(r.xp,500,Math.min(500,titles.length*5))});
+  });
+  seen=new Set(data.prayers.map(p=>normKey(p.name)));
+  ps.forEach(p=>{
+    let name=String(p.name||"").trim(),text=String(p.text||"").trim();
+    if(!name||!text){w.push("Uma oração sem nome ou texto foi ignorada");return}
+    if(seen.has(normKey(name))){out.skipped++;return}
+    seen.add(normKey(name));
+    let m=String(p.time||"").trim().match(/^(\d{1,2}):(\d{2})$/),time="12:00";
+    if(m&&Number(m[1])<24&&Number(m[2])<60)time=`${pad(Number(m[1]))}:${m[2]}`;
+    else w.push(`A oração "${name}" tem horário inválido (use HH:MM) — ficou 12:00`);
+    out.prayers.push({name,time,text,active:p.active!==false});
+  });
+  seen=new Set(data.tasks.map(t=>normKey(t.title)+"|"+t.due));
+  ts.forEach(t=>{
+    let title=String(t.title||"").trim(),due=String(t.due||"").trim();
+    if(!title){w.push("Uma tarefa sem título foi ignorada");return}
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(due)||dateKey(date(due))!==due){w.push(`A tarefa "${title}" não tem data válida (AAAA-MM-DD) e foi ignorada`);return}
+    let key=normKey(title)+"|"+due;
+    if(seen.has(key)){out.skipped++;return}
+    seen.add(key);
+    out.tasks.push({title,due,priority:["low","medium","high"].includes(t.priority)?t.priority:"medium",note:String(t.note||"")});
+  });
+  return out;
+}
+function commitPlan(p){
+  p.habits.forEach(h=>data.habits.push({id:uid(),...h,archived:false}));
+  p.routines.forEach(r=>data.routines.push({id:uid(),...r,items:r.items.map(title=>({id:uid(),title})),archived:false}));
+  p.prayers.forEach(x=>data.prayers.push({id:uid(),...x}));
+  p.tasks.forEach(t=>data.tasks.push({id:uid(),...t,completed:false,archived:false}));
+}
+function parsePlanJSON(text){
+  let t=String(text||"").trim(),m=t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if(m)t=m[1].trim();
+  try{return JSON.parse(t)}catch(e){
+    let a=t.indexOf("{"),b=t.lastIndexOf("}");
+    if(a>=0&&b>a)return JSON.parse(t.slice(a,b+1));
+    throw e;
+  }
+}
+function importPlanText(text){
+  let obj;
+  try{obj=parsePlanJSON(text)}catch(e){toast("JSON inválido: "+String(e.message).slice(0,70));return false}
+  let plan=normalizePlan(obj),parts=[];
+  if(plan.habits.length)parts.push(`${plan.habits.length} hábito(s)`);
+  if(plan.routines.length)parts.push(`${plan.routines.length} rotina(s)`);
+  if(plan.prayers.length)parts.push(`${plan.prayers.length} oração(ões)`);
+  if(plan.tasks.length)parts.push(`${plan.tasks.length} tarefa(s)`);
+  if(!parts.length){toast(plan.skipped?"Nada novo: tudo isso já existe aqui":"Nenhum item válido encontrado");return false}
+  let msg=`Importar ${parts.join(", ")} para este dispositivo?`;
+  if(plan.skipped)msg+=`\n\n${plan.skipped} item(ns) com o mesmo nome já existem e serão ignorados.`;
+  if(plan.warnings.length)msg+=`\n\nAvisos:\n- ${plan.warnings.slice(0,4).join("\n- ")}`;
+  if(!confirm(msg))return false;
+  commitPlan(plan);save();render();toast(`Importado: ${parts.join(", ")}`);
+  return true;
+}
+function importPlanFile(ev){
   let file=ev.target.files[0];if(!file)return;
   let reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      let obj=JSON.parse(reader.result),list=[];
-      if(obj&&obj.type==="habit-os-routine"&&obj.routine)list=[obj.routine];
-      else if(obj&&Array.isArray(obj.routines))list=obj.routines;
-      else if(obj&&obj.name&&Array.isArray(obj.items))list=[obj];
-      if(!list.length){toast("Arquivo inválido");ev.target.value="";return}
-      if(!confirm(list.length>1?`Importar ${list.length} rotinas para este dispositivo?`:`Importar a rotina "${list[0].name}" para este dispositivo?`)){ev.target.value="";return}
-      list.forEach(r=>data.routines.push({
-        id:uid(),
-        name:r.name||"Rotina importada",
-        items:(r.items||[]).map(i=>({id:uid(),title:(i&&i.title)||String(i)})),
-        frequency:r.frequency==="days"?"days":"daily",
-        days:Array.isArray(r.days)?r.days:[],
-        xp:Number(r.xp)||((r.items||[]).length*5)||10,
-        archived:false,
-      }));
-      save();render();toast(list.length>1?`${list.length} rotinas importadas`:"Rotina importada");
-    }catch(err){toast("Arquivo inválido")}
-    ev.target.value="";
-  };
+  reader.onload=()=>{if(importPlanText(reader.result)&&modal)closeForm();ev.target.value=""};
   reader.readAsText(file);
 }
+function importPasted(){
+  let el=document.getElementById("pasteArea"),t=el?el.value:"";
+  if(!t.trim()){toast("Cole o JSON primeiro");return}
+  if(importPlanText(t))closeForm();
+}
+function exportPlan(){
+  let payload={type:"habit-os-plan",version:1,
+    habits:data.habits.filter(h=>!h.archived).map(h=>({name:h.name,icon:h.icon,category:h.category,frequency:h.frequency,days:h.days||[],xp:h.xp,note:h.note||""})),
+    routines:data.routines.filter(r=>!r.archived).map(r=>({name:r.name,items:r.items.map(i=>({title:i.title})),frequency:r.frequency,days:r.days||[],xp:r.xp})),
+    prayers:data.prayers.map(p=>({name:p.name,time:p.time,text:p.text,active:p.active!==false}))};
+  downloadBlob(`habit-os-meu-plano-${dateKey()}.json`,JSON.stringify(payload,null,2),"application/json");
+  toast("Plano exportado");
+}
+
+/* ---------- GUIA PARA IA + MODELO ---------- */
+function planExample(){
+  return {type:"habit-os-plan",version:1,
+    habits:[
+      {name:"Beber água",icon:"💧",category:"Saúde",frequency:"daily",days:[],xp:5},
+      {name:"Treino",icon:"🏋️",category:"Saúde",frequency:"days",days:[1,3,5],xp:15,note:"Segunda, quarta e sexta"}],
+    routines:[
+      {name:"Rotina da manhã",items:[{title:"07:00 ☀️ Acordar"},{title:"07:05 💧 Beber água"},{title:"07:10 🛏️ Arrumar a cama"}],frequency:"days",days:[1,2,3,4,5],xp:20}],
+    prayers:[{name:"Oração de gratidão",time:"20:30",text:"Texto completo da oração aqui.",active:true}],
+    tasks:[{title:"Marcar consulta",due:dateKey(add(new Date(),3)),priority:"high",note:""}]};
+}
+function aiGuideText(){
+  return `# Guia para IA — como criar um plano para o Habit OS
+
+Você vai gerar UM arquivo JSON que o app **Habit OS** (web/PWA, 100% offline) importa pelo botão "Importar plano" ou "Colar JSON". O usuário vai descrever a rotina dele; sua tarefa é traduzir isso para o formato abaixo.
+
+## Como responder
+1. Se faltar informação importante (dias da semana, horários, quantos passos), faça NO MÁXIMO 3 perguntas curtas antes de gerar. Se o pedido já estiver claro, gere direto.
+2. Responda com o JSON válido dentro de um único bloco ${FENCE}json. Fora do bloco, no máximo 2 linhas dizendo o que foi criado.
+3. JSON estrito: aspas duplas, sem comentários, sem vírgula sobrando no fim, UTF-8 (emojis são bem-vindos).
+4. Não invente campos além dos listados. Não crie ids — o app gera sozinho.
+
+## Estrutura geral
+${FENCE}json
+{
+  "type": "habit-os-plan",
+  "version": 1,
+  "habits": [],
+  "routines": [],
+  "prayers": [],
+  "tasks": []
+}
+${FENCE}
+Todas as listas são opcionais, mas pelo menos uma precisa ter itens.
+
+## Dias da semana (usados em "days")
+0 = Domingo, 1 = Segunda, 2 = Terça, 3 = Quarta, 4 = Quinta, 5 = Sexta, 6 = Sábado.
+
+## habits — hábitos (marcar feito/não feito por dia, com sequência e XP)
+| campo | tipo | regra |
+|---|---|---|
+| name | texto | obrigatório, curto |
+| icon | emoji | 1 emoji (padrão "✓") |
+| category | texto | ex.: Saúde, Estudo, Rotina (padrão "Pessoal") |
+| frequency | "daily" ou "days" | "daily" = todo dia; "days" = só nos dias de "days" |
+| days | lista de 0 a 6 | obrigatório se frequency="days"; use [] se "daily" |
+| xp | inteiro 1–1000 | padrão 10. Sugestão: 5 fácil, 10 normal, 15–25 exige esforço |
+| note | texto | opcional |
+
+## routines — rotinas (lista ordenada de passos, com checklist e modo guiado)
+| campo | tipo | regra |
+|---|---|---|
+| name | texto | obrigatório |
+| items | lista | obrigatório. Cada passo é {"title": "texto"} (ou só o texto). Em ordem de execução |
+| frequency / days | igual a habits | a frequência vale para a rotina INTEIRA |
+| xp | inteiro 1–500 | XP ganho ao concluir todos os passos |
+
+Regras importantes das rotinas:
+- Passos não têm campo de horário. Se o horário importa, escreva no início do título: "07:30 ☀️ Acordar".
+- Como a frequência é da rotina inteira, rotinas diferentes por dia devem ser rotinas separadas (ex.: "Segunda a Sexta", "Sábado", "Domingo").
+- Passos curtos (até ~60 caracteres), começando com um emoji quando fizer sentido.
+
+## prayers — orações (lembrete diário com texto)
+| campo | tipo | regra |
+|---|---|---|
+| name | texto | obrigatório |
+| time | "HH:MM" | 24h, ex.: "21:30" |
+| text | texto | obrigatório |
+| active | true/false | padrão true |
+O app já vem com 4 orações padrão; só inclua orações novas se o usuário pedir.
+
+## tasks — tarefas pontuais
+| campo | tipo | regra |
+|---|---|---|
+| title | texto | obrigatório |
+| due | "AAAA-MM-DD" | obrigatório, data real |
+| priority | "low", "medium" ou "high" | padrão "medium" |
+| note | texto | opcional |
+
+## Comportamento da importação (para você saber o que esperar)
+- Itens com o mesmo nome de algo que já existe no app são ignorados (não duplica).
+- Itens inválidos (sem nome, sem passos, data inválida) são ignorados e o app mostra um aviso.
+- O app sempre pede confirmação antes de adicionar. Nada existente é apagado.
+
+## Exemplo completo e válido
+${FENCE}json
+${JSON.stringify(planExample(),null,2)}
+${FENCE}
+
+## Checklist final (confira antes de responder)
+- [ ] O JSON abre sem erro (aspas, vírgulas, colchetes balanceados)?
+- [ ] "days" só tem números de 0 a 6 e nunca está vazio quando frequency="days"?
+- [ ] Rotinas com dias diferentes estão em rotinas separadas?
+- [ ] Horários estão no título dos passos, não em campos inventados?
+
+## Pedido do usuário
+(O usuário descreverá a rotina logo abaixo.)
+`;
+}
+function planTemplate(){
+  let ex=planExample();
+  return {type:ex.type,version:ex.version,
+    _guia_para_ia:{
+      o_que_e:"Modelo de arquivo de plano do app Habit OS. Preencha habits, routines, prayers e tasks e importe em 'Importar plano' ou 'Colar JSON'.",
+      como_responder:"Devolva somente JSON válido (aspas duplas, sem comentários, sem vírgula sobrando). Não invente campos nem ids.",
+      dias_da_semana:"0=Domingo, 1=Segunda, 2=Terça, 3=Quarta, 4=Quinta, 5=Sexta, 6=Sábado",
+      habits:"name (obrigatório), icon (emoji), category, frequency ('daily' ou 'days'), days (lista 0-6; obrigatório se frequency='days'), xp (1-1000), note",
+      routines:"name, items (lista ORDENADA de {title}), frequency, days, xp (1-500). Passos não têm horário: escreva no título ('07:30 Acordar'). A frequência vale para a rotina inteira; rotinas por dia diferente = rotinas separadas.",
+      prayers:"name, time ('HH:MM'), text, active (true/false)",
+      tasks:"title, due ('AAAA-MM-DD', obrigatório), priority ('low'|'medium'|'high'), note",
+      importacao:"Nomes que já existem são ignorados; itens inválidos geram aviso; nada existente é apagado; o app pede confirmação.",
+      observacao:"Este bloco _guia_para_ia é ignorado na importação e pode ser apagado."
+    },
+    habits:ex.habits,routines:ex.routines,prayers:ex.prayers,tasks:ex.tasks};
+}
+function copyText(t){
+  let fallback=()=>{try{let a=document.createElement("textarea");a.value=t;a.style.position="fixed";a.style.opacity="0";document.body.append(a);a.select();let ok=document.execCommand("copy");a.remove();toast(ok?"Copiado!":"Não foi possível copiar — use Baixar")}catch(e){toast("Não foi possível copiar — use Baixar")}};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>toast("Copiado! Cole na IA")).catch(fallback);
+  else fallback();
+}
+function copyAIGuide(){copyText(aiGuideText())}
+function downloadAIGuide(){downloadBlob("habit-os-guia-para-ia.md",aiGuideText(),"text/markdown;charset=utf-8");toast("Guia baixado")}
+function downloadTemplate(){downloadBlob("habit-os-modelo-plano.json",JSON.stringify(planTemplate(),null,2),"application/json");toast("Modelo baixado")}
+function importHubForm(){return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">Importar com IA</div><button class="close" onclick="closeForm()">Fechar</button></div>
+  <p class="sub">Peça para uma IA montar seu plano em JSON e importe aqui, colando o texto ou enviando o arquivo.</p>
+  <div class="label">1 · DÊ AS INSTRUÇÕES PARA A IA</div>
+  <div class="hint">Copie o guia, cole numa IA (ChatGPT, Claude, Gemini…) e descreva sua rotina. Ela devolve o JSON pronto.</div>
+  <div class="reportButtons">
+    <button class="reportBtn" onclick="copyAIGuide()"><span>📋</span><b>Copiar instruções para a IA</b></button>
+    <button class="reportBtn" onclick="downloadAIGuide()"><span>📄</span><b>Baixar instruções (.md)</b></button>
+    <button class="reportBtn" onclick="downloadTemplate()"><span>🧩</span><b>Baixar modelo de arquivo (.json)</b></button>
+    <button class="reportBtn" onclick="exportPlan()"><span>⭳</span><b>Exportar meu plano atual</b></button>
+  </div>
+  <div class="label" style="margin-top:18px">2 · IMPORTE O RESULTADO</div>
+  <textarea class="input codeArea" id="pasteArea" rows="7" placeholder="Cole aqui o JSON que a IA gerou…"></textarea>
+  <button class="primary" onclick="importPasted()">IMPORTAR TEXTO COLADO</button>
+  <div class="actionRow" style="justify-content:center"><label class="secondary" style="cursor:pointer">Ou escolher um arquivo .json<input type="file" accept="application/json,.json" style="display:none" onchange="importPlanFile(event)"></label></div>
+  </div></div>`}
 
 function quickForm(){return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">Adicionar</div><button class="close" onclick="closeForm()">Fechar</button></div><div class="quickGrid">${[["✓","Hábito","habit"],["□","Tarefa","task"],["◷","Compromisso","event"],["◈","Rotina","routine"],["🙏","Oração","prayer"]].map(x=>`<button class="quick" onclick="openForm('${x[2]}')"><span>${x[0]}</span><b>${x[1]}</b></button>`).join("")}</div></div></div>`}
 
