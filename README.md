@@ -1,4 +1,4 @@
-# Habit OS — Web (v4)
+# Habit OS — Web (v6)
 
 App de hábitos 100% local: sem conta, sem backend, sem nuvem. Tudo fica salvo no
 `localStorage` do navegador. Funciona offline como PWA (dá pra "instalar" pelo
@@ -78,3 +78,11 @@ serve para levar seus dados para outro navegador via "Importar backup".
 Esta versão lê os dados salvos pela v3 automaticamente (mesma chave de
 armazenamento) — nenhuma migração manual é necessária, seus hábitos e
 histórico continuam de onde pararam.
+
+
+## Novidades da v6
+
+- **Planejador semanal inteligente** — visão dos sete dias com estimativa de tempo livre, ocupação e alertas de sobrecarga/conflitos.
+- **Horários-base editáveis** — acordar, dormir, faculdade, academia, deslocamentos e SENAI; escolha os dias de cada atividade.
+- **Estimativa de duração das tarefas** — informe quantos minutos cada tarefa deve levar para melhorar o cálculo da carga semanal.
+- Configurações do planejador ficam salvas no mesmo armazenamento local do Habit OS.

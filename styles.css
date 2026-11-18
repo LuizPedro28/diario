@@ -227,3 +227,34 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   #printArea .pStats b{display:block;font-size:20px;font-family:var(--font-display)}
   #printArea .pStats span{font-size:11px;color:#555}
 }
+
+/* Personal tools: hydration, focus and daily reflection */
+.toolHead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.toolHead b{font-size:16px}
+.toolValue{font-family:var(--font-display);font-size:24px;font-weight:700}
+.waterActions,.focusActions{display:flex;gap:8px;align-items:center;margin-top:12px}
+.waterActions button{flex:1}
+.focusClock{text-align:center;font-family:var(--font-display);font-size:58px;font-weight:700;letter-spacing:-2px;padding:10px 0}
+.focusModes{margin:4px 0 12px}
+.focusActions .primary{margin:0;flex:1}
+.focusHint{text-align:center;font-size:12px;margin-top:10px}
+.moodRow{display:flex;gap:8px;margin:10px 0}
+.mood{width:40px;height:40px;border-radius:12px;background:var(--soft);font-size:21px}
+.selectedMood{outline:2px solid var(--accent);background:var(--card)}
+.diaryCard textarea{resize:vertical;margin-bottom:8px}
+
+/* Planejador semanal */
+.navin{grid-template-columns:repeat(7,1fr)}
+.plannerHero{background:var(--ink);color:var(--bg)}
+.plannerHero .muted{color:var(--muted)}
+.plannerAlert{border:1px solid var(--danger);background:var(--card)}
+.plannerAlert p{margin:7px 0 0;color:var(--muted);line-height:1.45}
+.plannerDay{width:100%;text-align:left;color:var(--ink);margin:7px 0;padding:14px}
+.plannerDay.isToday{border-color:var(--accent);border-width:2px}
+.plannerDayHead,.plannerMeta{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.plannerDay .progress{margin:11px 0 7px}
+.plannerMeta{font-size:10px;color:var(--muted)}
+.plannerSettingsGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.plannerField{font-size:11px;color:var(--muted);font-weight:700}
+.plannerField .input{margin-top:5px;padding:10px}
+@media(max-width:390px){.nav button{font-size:9px}.nav button strong{font-size:19px}.plannerMeta{font-size:9px}}

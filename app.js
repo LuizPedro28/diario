@@ -17,7 +17,7 @@ const ACCENT_MAP=Object.fromEntries(ACCENTS.map(a=>[a.id,a.hex]));
 const THEME_LABELS={light:"Claro",dark:"Escuro",auto:"Automático"};
 const LEVEL_TITLES=["Iniciante","Aprendiz","Consistente","Dedicado","Focado","Resiliente","Disciplinado","Mestre dos Hábitos","Lenda viva"];
 const DEFAULT_SETTINGS={name:"",avatar:"🌟",accent:"gold",dailyGoal:3,weekStart:0};
-const INITIAL={habits:[],completions:[],tasks:[],routines:[],routineSteps:[],routineDone:[],prayers:PRAYERS,prayerDone:[],events:[],xp:0,theme:"light",onboarded:false,settings:clone(DEFAULT_SETTINGS),seenAchievements:[]};
+const INITIAL={habits:[],completions:[],tasks:[],routines:[],routineSteps:[],routineDone:[],prayers:PRAYERS,prayerDone:[],events:[],xp:0,theme:"light",onboarded:false,settings:clone(DEFAULT_SETTINGS),seenAchievements:[],waterLogs:[],diary:[],focusSessions:[]};
 
 /* ---------- ESTADO ---------- */
 let data=load(),page="today",modal=null,selected=dateKey(),month=new Date();
@@ -38,6 +38,7 @@ function load(){
       routineDone:x.routineDone||[],
       settings:{...clone(DEFAULT_SETTINGS),...(x.settings||{})},
       seenAchievements:x.seenAchievements||[],
+      waterLogs:x.waterLogs||[],diary:x.diary||[],focusSessions:x.focusSessions||[],
     };
   }catch{return clone(INITIAL)}
 }
@@ -110,14 +111,14 @@ function checkAchievements(){
 }
 
 /* ---------- CASCA / NAVEGAÇÃO ---------- */
-function nav(){return `<nav class="nav"><div class="navin">${[["today","⌂","Hoje"],["agenda","▦","Agenda"],["habits","✓","Hábitos"],["evolution","▥","Evolução"],["profile","◉","Perfil"]].map(x=>`<button class="${page===x[0]?"active":""}" onclick="go('${x[0]}')"><strong>${x[1]}</strong>${x[2]}</button>`).join("")}<button class="addBtn" onclick="openForm('quick')">＋</button></div></nav>`}
+function nav(){return `<nav class="nav"><div class="navin">${[["today","⌂","Hoje"],["agenda","▦","Agenda"],["habits","✓","Hábitos"],["evolution","▥","Evolução"],["planner","◷","Planejar"],["profile","◉","Perfil"]].map(x=>`<button class="${page===x[0]?"active":""}" onclick="go('${x[0]}')"><strong>${x[1]}</strong>${x[2]}</button>`).join("")}<button class="addBtn" onclick="openForm('quick')">＋</button></div></nav>`}
 function go(p){page=p;modal=null;render()}
 function render(){
   let active=document.activeElement,activeId=active&&active.id,selStart=activeId&&typeof active.selectionStart==="number"?active.selectionStart:null;
   let dark=data.theme==="dark"||(data.theme==="auto"&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark",dark);
   document.documentElement.style.setProperty("--accent",ACCENT_MAP[data.settings.accent]||ACCENT_MAP.gold);
-  let body=data.onboarded?`<main>${page==="today"?today():page==="agenda"?agenda():page==="habits"?habitsHubPage():page==="evolution"?evolution():profileSettings()}</main>${nav()}`:onboard();
+  let body=data.onboarded?`<main>${page==="today"?today():page==="agenda"?agenda():page==="habits"?habitsHubPage():page==="evolution"?evolution():page==="planner"?plannerPage():profileSettings()}</main>${nav()}`:onboard();
   document.getElementById("app").innerHTML=body;
   if(modal)document.getElementById("app").insertAdjacentHTML("beforeend",modal==="player"?routinePlayerView():modal);
   if(activeId){let el=document.getElementById(activeId);if(el){el.focus();if(selStart!==null&&el.setSelectionRange){try{el.setSelectionRange(selStart,selStart)}catch(e){}}}}
@@ -143,6 +144,77 @@ function routineItem(r,k=dateKey()){
     <div class="stepsList">${r.items.map(s=>`<label class="stepRow"><input type="checkbox" ${stepDone(r.id,s.id,k)?"checked":""} onchange="toggleRoutineStep('${r.id}','${s.id}','${k}')"><span>${esc(s.title)}</span></label>`).join("")}</div>
   </div>`;
 }
+
+
+/* ---------- FERRAMENTAS PESSOAIS ---------- */
+let focusTimer={remaining:25*60,endsAt:null,running:false,mode:25};
+let focusInterval=null;
+function waterToday(){return data.waterLogs.find(x=>x.date===dateKey())||{date:dateKey(),ml:0}}
+function addWater(ml){let w=waterToday();w.ml=Math.max(0,w.ml+ml);let old=data.waterLogs.findIndex(x=>x.date===w.date);if(old>=0)data.waterLogs[old]=w;else data.waterLogs.push(w);save();render()}
+function waterCard(){
+  let w=waterToday(),goal=Number(data.settings.waterGoal)||2500,p=Math.min(100,w.ml/goal*100);
+  return `<div class="card waterCard"><div class="toolHead"><div><div class="eyebrow">HIDRATAÇÃO</div><b>💧 Água de hoje</b></div><span class="toolValue">${(w.ml/1000).toFixed(2)} L</span></div><div class="progress"><i style="width:${p}%"></i></div><div class="muted">${w.ml} ml de ${goal} ml • ${Math.round(p)}% da meta</div><div class="waterActions"><button class="secondary" onclick="addWater(250)">＋ 250 ml</button><button class="secondary" onclick="addWater(500)">＋ 500 ml</button><button class="secondary small" onclick="addWater(-250)">− 250</button></div></div>`;
+}
+function focusCard(){
+  if(focusTimer.running&&focusTimer.endsAt)focusTimer.remaining=Math.max(0,Math.ceil((focusTimer.endsAt-Date.now())/1000));
+  let mins=Math.floor(focusTimer.remaining/60),secs=focusTimer.remaining%60;
+  let todayCount=data.focusSessions.filter(x=>x.date===dateKey()).length;
+  return `<div class="card focusCard"><div class="toolHead"><div><div class="eyebrow">PRODUTIVIDADE</div><b>🎯 Modo foco</b></div><span class="pill">${todayCount} sessões hoje</span></div><div class="focusClock" id="focusClock">${pad(mins)}:${pad(secs)}</div><div class="segmented focusModes"><button class="seg ${focusTimer.mode===25?"on":""}" onclick="setFocusMode(25)">25 min</button><button class="seg ${focusTimer.mode===50?"on":""}" onclick="setFocusMode(50)">50 min</button><button class="seg ${focusTimer.mode===15?"on":""}" onclick="setFocusMode(15)">15 min</button></div><div class="focusActions"><button class="primary" onclick="toggleFocus()">${focusTimer.running?"Pausar":"Começar a focar"}</button><button class="secondary" onclick="resetFocus()">↺</button></div><div class="muted focusHint">Afaste as distrações. Uma tarefa de cada vez.</div></div>`;
+}
+function setFocusMode(m){if(focusTimer.running)return toast("Pause o foco antes de trocar");focusTimer.mode=m;focusTimer.remaining=m*60;render()}
+function toggleFocus(){
+  if(focusTimer.running){focusTimer.remaining=Math.max(0,Math.ceil((focusTimer.endsAt-Date.now())/1000));focusTimer.running=false;focusTimer.endsAt=null;clearInterval(focusInterval);focusInterval=null;render();return}
+  focusTimer.running=true;focusTimer.endsAt=Date.now()+focusTimer.remaining*1000;
+  clearInterval(focusInterval);focusInterval=setInterval(()=>{
+    focusTimer.remaining=Math.max(0,Math.ceil((focusTimer.endsAt-Date.now())/1000));
+    let el=document.getElementById("focusClock");if(el)el.textContent=`${pad(Math.floor(focusTimer.remaining/60))}:${pad(focusTimer.remaining%60)}`;
+    if(focusTimer.remaining<=0){clearInterval(focusInterval);focusInterval=null;focusTimer.running=false;focusTimer.endsAt=null;data.focusSessions.push({date:dateKey(),minutes:focusTimer.mode,at:new Date().toISOString()});data.xp+=10;save();toast("🎉 Sessão concluída! +10 XP");render()}
+  },250);render();
+}
+function resetFocus(){clearInterval(focusInterval);focusInterval=null;focusTimer={remaining:focusTimer.mode*60,endsAt:null,running:false,mode:focusTimer.mode};render()}
+function diaryCard(){
+  let entry=data.diary.find(x=>x.date===dateKey())||{text:"",mood:"🙂"};
+  return `<div class="card diaryCard"><div class="toolHead"><div><div class="eyebrow">REFLEXÃO</div><b>📓 Diário do dia</b></div><span>${esc(entry.mood)}</span></div><div class="moodRow">${["😄","🙂","😐","😔","😤"].map(m=>`<button class="mood ${entry.mood===m?"selectedMood":""}" onclick="setMood('${m}')">${m}</button>`).join("")}</div><textarea class="input" id="diaryText" rows="3" placeholder="O que aconteceu hoje? O que posso melhorar amanhã?">${esc(entry.text)}</textarea><button class="secondary small" onclick="saveDiary()">Salvar reflexão</button></div>`;
+}
+function setMood(m){let e=data.diary.find(x=>x.date===dateKey())||{date:dateKey(),text:"",mood:"🙂"};e.mood=m;let i=data.diary.findIndex(x=>x.date===e.date);if(i>=0)data.diary[i]=e;else data.diary.push(e);save();render()}
+function saveDiary(){let e=data.diary.find(x=>x.date===dateKey())||{date:dateKey(),mood:"🙂",text:""};e.text=document.getElementById("diaryText")?.value||"";let i=data.diary.findIndex(x=>x.date===e.date);if(i>=0)data.diary[i]=e;else data.diary.push(e);save();toast("Reflexão salva!")}
+
+/* ---------- PLANEJADOR SEMANAL INTELIGENTE ---------- */
+const PLAN_DEFAULTS={wake:"05:30",sleep:"00:00",collegeStart:"07:20",collegeEnd:"11:20",home:"13:30",gymStart:"14:00",gymEnd:"15:15",senaiLeave:"17:50",senaiStart:"18:45",senaiEnd:"22:00",returnHome:"23:10",gymDays:[1,2,3,5,6],collegeDays:[1,2,3,4,5],senaiDays:[1,2,3,4,5]};
+function plannerSettings(){if(!data.settings.planner)data.settings.planner=clone(PLAN_DEFAULTS);return data.settings.planner}
+function timeMin(t){let [h,m]=(t||"0:0").split(":").map(Number);return h*60+(m||0)}
+function durationLabel(n){let h=Math.floor(n/60),m=n%60;return h?`${h}h${m?` ${m}min`:""}`:`${m}min`}
+function plannerWeekRange(){let now=new Date(),offset=(now.getDay()-(data.settings.weekStart||0)+7)%7,start=add(now,-offset);return {start:dateKey(start),end:dateKey(add(start,6))}}
+function plannerBlocks(day){
+ let p=plannerSettings(),week=plannerWeekRange(),b=[],addB=(start,end,title,kind)=>{if(start&&end&&timeMin(end)>timeMin(start))b.push({start,end,title,kind})};
+ if(p.collegeDays.includes(day)){addB(p.collegeStart,p.collegeEnd,"Faculdade","fixed");addB(p.collegeEnd,p.home,"Deslocamento + chegada em casa","travel")}
+ if(p.gymDays.includes(day))addB(p.gymStart,p.gymEnd,"Academia","gym");
+ if(p.senaiDays.includes(day)){addB(p.senaiLeave,p.senaiStart,"Deslocamento para o SENAI","travel");addB(p.senaiStart,p.senaiEnd,"SENAI","fixed");addB(p.senaiEnd,p.returnHome,"Volta para casa","travel")}
+ data.events.filter(e=>!e.archived&&e.date>=week.start&&e.date<=week.end&&date(e.date).getDay()===day).forEach(e=>addB(e.time,e.endTime||"",e.title,"event"));
+ return b.sort((a,b)=>timeMin(a.start)-timeMin(b.start));
+}
+function plannerDay(day){
+ let p=plannerSettings(),blocks=plannerBlocks(day),start=timeMin(p.wake),end=timeMin(p.sleep),awake=Math.max(0,(end<=start?end+1440:end)-start),occupied=0,prev=start,conflicts=[];
+ blocks.forEach(b=>{let a=timeMin(b.start),z=timeMin(b.end);if(a<prev)conflicts.push(b.title);occupied+=Math.max(0,z-Math.max(a,prev));prev=Math.max(prev,z)});
+ let week=plannerWeekRange();let taskMinutes=data.tasks.filter(t=>!t.archived&&!t.completed&&t.due&&t.due>=week.start&&t.due<=week.end&&date(t.due).getDay()===day).reduce((n,t)=>n+(Number(t.estimate)||30),0);
+ let used=Math.min(awake,occupied)+taskMinutes,free=Math.max(0,awake-occupied-taskMinutes);
+ return {blocks,awake,occupied,taskMinutes,free,load:awake?Math.min(150,used/awake*100):0,conflicts};
+}
+function plannerPage(){
+ let todayN=new Date().getDay(),days=orderedDayDefs(),week=days.map(d=>({day:d,...plannerDay(d.v)})),overloaded=week.filter(x=>x.load>=85||x.conflicts.length),p=plannerSettings(),totalFree=week.reduce((n,x)=>n+x.free,0);
+ return `<div class="top"><div><div class="eyebrow">CENTRAL DE COMANDO</div><div class="title">Planejar semana</div><div class="sub">Veja sua carga, espaços livres e possíveis excessos</div></div><div class="avatarBadge">🧭</div></div>
+ <div class="card plannerHero"><div class="toolHead"><div><div class="eyebrow">CAPACIDADE SEMANAL ESTIMADA</div><b>${durationLabel(totalFree)} livres</b></div><span class="pill">${overloaded.length} dia(s) em atenção</span></div><p class="muted">Estimativa baseada nos horários fixos, compromissos cadastrados e tarefas pendentes.</p></div>
+ ${overloaded.length?`<div class="card plannerAlert"><b>⚠️ Atenção à sobrecarga</b><p>${overloaded.map(x=>DAYS[x.day.v]).join(", ")} ${overloaded.length===1?"está":"estão"} com pouco espaço ou horários conflitantes. Reduza tarefas secundárias ou mova atividades flexíveis.</p></div>`:`<div class="card"><b>✅ Semana sem sobrecarga detectada</b><p class="muted">Ainda assim, preserve pausas e tempo de descanso.</p></div>`}
+ <div class="section"><b>Visão dos sete dias</b><span class="muted">Toque para detalhes</span></div>
+ ${week.map(x=>`<button class="card plannerDay ${x.day.v===todayN?"isToday":""}" onclick="showPlannerDay(${x.day.v})"><div class="plannerDayHead"><b>${x.day.l}${x.day.v===todayN?" • Hoje":""}</b><span class="muted">${durationLabel(x.free)} livres</span></div><div class="progress"><i style="width:${Math.min(100,x.load)}%;background:${x.load>=85?"var(--danger)":"var(--ink)"}"></i></div><div class="plannerMeta"><span>${x.blocks.length} blocos</span><span>${durationLabel(x.taskMinutes)} em tarefas</span><b>${Math.round(x.load)}% ocupado</b></div></button>`).join("")}
+ <div class="section"><b>Seus horários-base</b></div><div class="card"><p class="muted">Pré-configurado com sua rotina habitual. Ajuste se algum horário mudou.</p><div class="plannerSettingsGrid">
+ ${[["wake","Acordar"],["sleep","Dormir"],["collegeStart","Faculdade começa"],["collegeEnd","Faculdade termina"],["home","Chegada em casa"],["gymStart","Academia começa"],["gymEnd","Academia termina"],["senaiLeave","Sair para o SENAI"],["senaiStart","SENAI começa"],["senaiEnd","SENAI termina"],["returnHome","Chegada em casa (noite)"]].map(([k,l])=>`<label class="plannerField"><span>${l}</span><input class="input" type="time" value="${esc(p[k])}" onchange="setPlannerTime('${k}',this.value)"></label>`).join("")}</div>
+ ${[["collegeDays","Faculdade"],["gymDays","Academia"],["senaiDays","SENAI"]].map(([k,l])=>`<div class="formRow"><b class="label">${l.toUpperCase()} • DIAS</b><div class="days">${DAYS.map((d,i)=>`<button class="day ${(p[k]||[]).includes(i)?"sel":""}" onclick="togglePlannerDay('${k}',${i})">${d}</button>`).join("")}</div></div>`).join("")}</div>
+ <div class="section"><b>Como o cálculo funciona</b></div><div class="card muted">O Habit OS soma o tempo acordado, desconta faculdade, academia, SENAI, deslocamentos, compromissos e 30 minutos por tarefa pendente. Com 85% de ocupação, o dia entra em atenção. Horários sobrepostos também são sinalizados.</div>`;
+}
+function setPlannerTime(k,v){plannerSettings()[k]=v;save();render()}
+function togglePlannerDay(k,d){let a=plannerSettings()[k]||[];plannerSettings()[k]=a.includes(d)?a.filter(x=>x!==d):[...a,d].sort();save();render()}
+function showPlannerDay(day){let x=plannerDay(day),blocks=x.blocks.map(b=>`${b.start}–${b.end}  ${b.title}`).join("\\n")||"Nenhum bloco fixo",suggestions=x.load>=85?"Sugestão: escolha 1–3 prioridades, mova tarefas não urgentes e proteja o sono.":x.free<120?"Sugestão: mantenha esse dia leve e evite compromissos longos.":"Sugestão: use um bloco livre para estudo ou tarefas, mantendo pausas.";alert(`${DAYS[day]}\\n\\n${blocks}\\n\\nTempo livre estimado: ${durationLabel(x.free)}\\nTarefas pendentes: ${durationLabel(x.taskMinutes)}\\nOcupação estimada: ${Math.round(x.load)}%\\n${x.conflicts.length?"⚠️ Possível conflito de horários.\\n":""}\\n${suggestions}`)}
 
 /* ---------- PÁGINA: HOJE ---------- */
 function dailyGoalCard(s){
@@ -281,6 +353,7 @@ function profileSettings(){
   </div>
   <div class="card"><b>Metas</b>
     <div class="formRow"><label class="label">META DIÁRIA (nº de itens concluídos)</label><input class="input" type="number" min="1" max="20" value="${s.dailyGoal||3}" onchange="updateSetting('dailyGoal',Number(this.value)||3)"></div>
+    <div class="formRow"><label class="label">META DE ÁGUA (ML)</label><input class="input" type="number" min="500" max="6000" step="250" value="${s.waterGoal||2500}" onchange="updateSetting('waterGoal',Math.max(500,Number(this.value)||2500))"></div>
     <label class="label">INÍCIO DA SEMANA</label>
     <div class="segmented"><button class="seg ${s.weekStart===0?"on":""}" onclick="updateSetting('weekStart',0)">Domingo</button><button class="seg ${s.weekStart===1?"on":""}" onclick="updateSetting('weekStart',1)">Segunda</button></div>
   </div>
@@ -309,8 +382,8 @@ function readDays(form){return [...form.querySelectorAll(".day")].filter(x=>x.cl
 function habitForm(e){let h=e?data.habits.find(x=>x.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${h?"Editar":"Novo"} hábito</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveHabit(event,'${e||""}')"><label class="label">NOME</label><input class="input" name="name" value="${esc(h?.name||"")}" required><label class="label">ÍCONE</label><input class="input" name="icon" value="${esc(h?.icon||"✓")}"><label class="label">CATEGORIA</label><input class="input" name="category" value="${esc(h?.category||"Pessoal")}"><label class="label">FREQUÊNCIA</label><select class="select" name="frequency" onchange="this.nextElementSibling.style.display=this.value==='days'?'flex':'none'"><option value="daily" ${h?.frequency!=="days"?"selected":""}>Todos os dias</option><option value="days" ${h?.frequency==="days"?"selected":""}>Dias da semana</option></select><div class="days" style="display:${h?.frequency==="days"?"flex":"none"}">${daysButtons(h?.days||[1,3,5])}</div><label class="label">XP</label><input class="input" type="number" name="xp" min="1" max="1000" value="${h?.xp||10}"><label class="label">DESCRIÇÃO</label><textarea class="input" name="note" rows="3">${esc(h?.note||"")}</textarea><button class="primary">SALVAR</button>${h?`<button type="button" class="dangerBtn" onclick="deleteItem('habit','${h.id}')">EXCLUIR</button>`:""}</form></div></div>`}
 function saveHabit(ev,e){ev.preventDefault();let f=new FormData(ev.target),ds=readDays(ev.target),o={name:f.get("name"),icon:f.get("icon")||"✓",category:f.get("category")||"Pessoal",frequency:f.get("frequency"),days:ds,xp:Number(f.get("xp"))||10,note:f.get("note")||"",archived:false};if(e)Object.assign(data.habits.find(h=>h.id===e),o);else data.habits.push({id:uid(),...o});save();closeForm();toast("Hábito salvo")}
 
-function taskForm(e){let t=e?data.tasks.find(x=>x.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${t?"Editar":"Nova"} tarefa</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveTask(event,'${e||""}')"><label class="label">TÍTULO</label><input class="input" name="title" value="${esc(t?.title||"")}" required><label class="label">DATA</label><input class="input" name="due" type="date" value="${t?.due||selected}" required><label class="label">PRIORIDADE</label><select class="select" name="priority"><option ${t?.priority==="low"?"selected":""} value="low">Baixa</option><option ${!t||t.priority==="medium"?"selected":""} value="medium">Média</option><option ${t?.priority==="high"?"selected":""} value="high">Alta</option></select><label class="label">NOTAS</label><textarea class="input" name="note" rows="3">${esc(t?.note||"")}</textarea><button class="primary">SALVAR</button>${t?`<button type="button" class="dangerBtn" onclick="deleteItem('task','${t.id}')">EXCLUIR</button>`:""}</form></div></div>`}
-function saveTask(ev,e){ev.preventDefault();let f=new FormData(ev.target),old=e?data.tasks.find(t=>t.id===e):null,o={title:f.get("title"),due:f.get("due"),priority:f.get("priority"),note:f.get("note")||"",completed:old?.completed||false,archived:false};if(old)Object.assign(old,o);else data.tasks.push({id:uid(),...o});save();closeForm();toast("Tarefa salva")}
+function taskForm(e){let t=e?data.tasks.find(x=>x.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${t?"Editar":"Nova"} tarefa</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveTask(event,'${e||""}')"><label class="label">TÍTULO</label><input class="input" name="title" value="${esc(t?.title||"")}" required><label class="label">DATA</label><input class="input" name="due" type="date" value="${t?.due||selected}" required><label class="label">TEMPO ESTIMADO (MINUTOS)</label><input class="input" name="estimate" type="number" min="5" max="600" step="5" value="${t?.estimate||30}"><label class="label">PRIORIDADE</label><select class="select" name="priority"><option ${t?.priority==="low"?"selected":""} value="low">Baixa</option><option ${!t||t.priority==="medium"?"selected":""} value="medium">Média</option><option ${t?.priority==="high"?"selected":""} value="high">Alta</option></select><label class="label">NOTAS</label><textarea class="input" name="note" rows="3">${esc(t?.note||"")}</textarea><button class="primary">SALVAR</button>${t?`<button type="button" class="dangerBtn" onclick="deleteItem('task','${t.id}')">EXCLUIR</button>`:""}</form></div></div>`}
+function saveTask(ev,e){ev.preventDefault();let f=new FormData(ev.target),old=e?data.tasks.find(t=>t.id===e):null,o={title:f.get("title"),due:f.get("due"),priority:f.get("priority"),estimate:Math.max(5,Number(f.get("estimate"))||30),note:f.get("note")||"",completed:old?.completed||false,archived:false};if(old)Object.assign(old,o);else data.tasks.push({id:uid(),...o});save();closeForm();toast("Tarefa salva")}
 
 function eventForm(e){let x=e?data.events.find(a=>a.id===e):null;return `<div class="modal"><div class="sheet"><div class="sheetTop"><div class="title">${x?"Editar":"Novo"} compromisso</div><button class="close" onclick="closeForm()">Fechar</button></div><form class="form" onsubmit="saveEvent(event,'${e||""}')"><label class="label">TÍTULO</label><input class="input" name="title" value="${esc(x?.title||"")}" placeholder="Estudo, treino, consulta..." required><label class="label">DATA</label><input class="input" name="date" type="date" value="${x?.date||selected}" required><label class="label">HORÁRIO</label><input class="input" name="time" type="time" value="${x?.time||"08:00"}"><label class="label">CATEGORIA</label><input class="input" name="category" value="${esc(x?.category||"Agenda")}"><label class="label">NOTAS</label><textarea class="input" name="notes" rows="3">${esc(x?.notes||"")}</textarea><button class="primary">SALVAR</button>${x?`<button type="button" class="dangerBtn" onclick="deleteItem('event','${x.id}')">EXCLUIR</button>`:""}</form></div></div>`}
 function saveEvent(ev,e){ev.preventDefault();let f=new FormData(ev.target),o={title:f.get("title"),date:f.get("date"),time:f.get("time"),category:f.get("category"),notes:f.get("notes"),archived:false};if(e)Object.assign(data.events.find(x=>x.id===e),o);else data.events.push({id:uid(),...o});save();closeForm();toast("Compromisso salvo")}
